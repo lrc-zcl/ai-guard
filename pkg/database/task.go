@@ -21,6 +21,7 @@ package database
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"gorm.io/datatypes"
@@ -382,10 +383,10 @@ func (s *TaskStore) SearchUserSessionsSimple(username string, searchParams Simpl
 
 	// 如果有查询关键词，在多个字段中搜索
 	if searchParams.Query != "" {
-		query = query.Where("title LIKE ? OR content LIKE ? OR task_type LIKE ?",
-			"%"+searchParams.Query+"%",
-			"%"+searchParams.Query+"%",
-			"%"+searchParams.Query+"%")
+		// LOWER(..) LIKE 使 PostgreSQL 下的搜索大小写不敏感
+		q := strings.ToLower(searchParams.Query)
+		query = query.Where("LOWER(title) LIKE ? OR LOWER(content) LIKE ? OR LOWER(task_type) LIKE ?",
+			"%"+q+"%", "%"+q+"%", "%"+q+"%")
 	}
 
 	// 获取总数

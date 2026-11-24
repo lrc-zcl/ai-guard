@@ -1,7 +1,6 @@
 package database
 
 import (
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -12,24 +11,9 @@ import (
 
 func newTestAuthStore(t *testing.T) (*AuthStore, *gorm.DB) {
 	t.Helper()
-	f, err := os.CreateTemp("", "authdb-*.db")
-	require.NoError(t, err)
-	path := f.Name()
-	f.Close()
-
-	db, err := InitDB(NewConfig(path))
-	require.NoError(t, err)
+	db := NewTestDB(t)
 	s := NewAuthStore(db)
 	require.NoError(t, s.Init())
-
-	t.Cleanup(func() {
-		if sqlDB, _ := db.DB(); sqlDB != nil {
-			sqlDB.Close()
-		}
-		os.Remove(path)
-		os.Remove(path + "-wal")
-		os.Remove(path + "-shm")
-	})
 	return s, db
 }
 

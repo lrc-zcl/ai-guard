@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -30,24 +29,11 @@ func newAuthFixture(t *testing.T) *authFixture {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
-	f, err := os.CreateTemp("", "wsauth-*.db")
-	require.NoError(t, err)
-	path := f.Name()
-	f.Close()
-	db, err := database.InitDB(database.NewConfig(path))
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		if sqlDB, _ := db.DB(); sqlDB != nil {
-			sqlDB.Close()
-		}
-		os.Remove(path)
-		os.Remove(path + "-wal")
-		os.Remove(path + "-shm")
-	})
+	db := database.NewTestDB(t)
 
 	store := database.NewAuthStore(db)
 	require.NoError(t, store.Init())
-	_, err = store.EnsureAdmin("admin", "admin-pass-123")
+	_, err := store.EnsureAdmin("admin", "admin-pass-123")
 	require.NoError(t, err)
 
 	auth := NewAuthenticator(store, testAgentToken)

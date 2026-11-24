@@ -10,11 +10,10 @@ warn_or_continue() { echo "Warning: $1" >&2; }
 
 echo 正在初始化 AI-Infra-Guard 服务...
 # 创建必要的目录
-mkdir -p /ai-infra-guard/db /ai-infra-guard/uploads /ai-infra-guard/logs
+mkdir -p /ai-infra-guard/uploads /ai-infra-guard/logs
 
 # 设置文件权限
 echo 设置文件权限...
-chmod 755 /ai-infra-guard/db || warn_or_continue "Skip permission change on mounted volume"
 chmod 755 /ai-infra-guard/uploads || warn_or_continue "Skip permission change on mounted volume"
 chmod 755 /ai-infra-guard/logs || warn_or_continue "Skip permission change on mounted volume"
 

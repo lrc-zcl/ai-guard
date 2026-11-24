@@ -23,7 +23,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -40,8 +39,7 @@ func newConfiguredProxyServer(
 ) *httptest.Server {
 	t.Helper()
 
-	db, err := database.InitDB(database.NewConfig(filepath.Join(t.TempDir(), "api-checker.db")))
-	require.NoError(t, err)
+	db := database.NewTestDB(t)
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = sqlDB.Close() })

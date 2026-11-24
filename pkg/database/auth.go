@@ -22,7 +22,7 @@ const (
 	// APIKeyPrefix 是所有 API Key 的固定前缀，便于识别和在日志/代码扫描中发现泄漏。
 	APIKeyPrefix = "aig_"
 
-	// apiKeyLastUsedThrottle 限制 last_used_at 的写入频率，避免每个请求都写一次 SQLite。
+	// apiKeyLastUsedThrottle 限制 last_used_at 的写入频率，避免每个请求都写一次数据库。
 	apiKeyLastUsedThrottle = time.Minute
 )
 

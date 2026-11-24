@@ -76,8 +76,7 @@ COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh && chown root:root /app/start.sh
 
 # 创建必要的目录并设置权限（仅对镜像内有效）
-RUN mkdir -p /app/uploads \
-    /app/db && \
+RUN mkdir -p /app/uploads && \
     chown -R root:root /app && \
     chmod -R 755 /app && \
     mkdir -p /app/AIG-PromptSecurity/utils
@@ -86,7 +85,6 @@ COPY ./AIG-PromptSecurity/utils/strategy_map.json /app/AIG-PromptSecurity/utils/
 # 设置环境变量
 ENV APP_ENV=production
 ENV UPLOAD_DIR=/app/uploads
-ENV DB_PATH=/app/db/tasks.db
 ENV TZ=Asia/Shanghai
 ENV PYTHONUNBUFFERED=1
 ENV AIG_API_CHECKER_URL=http://agent:8000
@@ -95,7 +93,7 @@ ENV AIG_API_CHECKER_URL=http://agent:8000
 EXPOSE 8088
 
 # 声明卷挂载点
-VOLUME ["/app/uploads", "/app/db", "/app/data", "/app/logs"]
+VOLUME ["/app/uploads", "/app/data", "/app/logs"]
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

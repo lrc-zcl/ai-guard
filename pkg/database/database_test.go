@@ -15,27 +15,17 @@
 package database
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// newTestDB creates an in-memory SQLite DB for testing.
+// newTestDB 基于 PostgreSQL 测试库（见 NewTestDB）创建 store。
 func newTestDB(t *testing.T) (*TaskStore, *ModelStore, func()) {
 	t.Helper()
 
-	// Use a temp file-based DB (pure in-memory ":memory:" doesn't work well
-	// with glebarez/sqlite + shared cache, so use a temp file instead).
-	f, err := os.CreateTemp("", "testdb-*.db")
-	require.NoError(t, err)
-	dbPath := f.Name()
-	f.Close()
-
-	cfg := NewConfig(dbPath)
-	db, err := InitDB(cfg)
-	require.NoError(t, err)
+	db := NewTestDB(t)
 
 	ts := NewTaskStore(db)
 	require.NoError(t, ts.Init())
@@ -43,56 +33,34 @@ func newTestDB(t *testing.T) (*TaskStore, *ModelStore, func()) {
 	ms := NewModelStore(db)
 	require.NoError(t, ms.Init())
 
-	cleanup := func() {
-		sqlDB, _ := db.DB()
-		if sqlDB != nil {
-			sqlDB.Close()
-		}
-		os.Remove(dbPath)
-	}
-	return ts, ms, cleanup
+	return ts, ms, func() {} // 清理由 NewTestDB 的 t.Cleanup 负责
 }
 
 // ---------------------------------------------------------------------------
 // InitDB / Config
 // ---------------------------------------------------------------------------
 
-func TestInitDB_InMemory(t *testing.T) {
-	f, err := os.CreateTemp("", "testdb-init-*.db")
-	require.NoError(t, err)
-	dbPath := f.Name()
-	f.Close()
-	defer os.Remove(dbPath)
+func TestInitDB_NoDSN(t *testing.T) {
+	_, err := InitDB(NewConfig(""))
+	assert.Error(t, err)
+}
 
-	cfg := NewConfig(dbPath)
-	assert.Equal(t, dbPath, cfg.DBPath)
-
-	db, err := InitDB(cfg)
-	require.NoError(t, err)
-	assert.NotNil(t, db)
-
+func TestInitDB_Postgres(t *testing.T) {
+	db := NewTestDB(t)
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	assert.NoError(t, sqlDB.Ping())
-	sqlDB.Close()
 }
 
 func TestNewConfig(t *testing.T) {
-	cfg := NewConfig("/tmp/test.db")
-	assert.Equal(t, "/tmp/test.db", cfg.DBPath)
+	cfg := NewConfig("postgres://u:p@h:5432/d")
+	assert.Equal(t, "postgres://u:p@h:5432/d", cfg.DSN)
 }
 
-func TestLoadConfigFromEnv_Default(t *testing.T) {
-	os.Unsetenv("DB_PATH")
+func TestLoadConfigFromEnv(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://env@h/d")
 	cfg := LoadConfigFromEnv()
-	assert.Equal(t, "db/tasks.db", cfg.DBPath)
-}
-
-func TestLoadConfigFromEnv_Override(t *testing.T) {
-	os.Setenv("DB_PATH", "/tmp/override.db")
-	defer os.Unsetenv("DB_PATH")
-	cfg := LoadConfigFromEnv()
-	assert.Equal(t, "/tmp/override.db", cfg.DBPath)
+	assert.Equal(t, "postgres://env@h/d", cfg.DSN)
 }
 
 // ---------------------------------------------------------------------------

@@ -10,21 +10,42 @@ services:
     environment:
       - APP_ENV=production
       - UPLOAD_DIR=/app/uploads
-      - DB_PATH=/app/db/tasks.db
+      - DATABASE_URL=postgres://${POSTGRES_USER:-aig}:${POSTGRES_PASSWORD:-aig_password}@postgres:5432/${POSTGRES_DB:-aig}?sslmode=disable
       - TZ=Asia/Shanghai
     volumes:
       - ./data:/app/data
-      - ./db:/app/db
       - ./logs:/app/logs
       - ./uploads:/app/uploads
     networks:
       - ai-infra-guard-network
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: always
     healthcheck:
       test: [ "CMD", "curl",  "http://localhost:8088/" ]
       interval: 30s
       timeout: 3s
       retries: 3
+  postgres:
+    image: postgres:16-alpine
+    container_name: ai-infra-guard-postgres
+    environment:
+      - TZ=Asia/Shanghai
+      - POSTGRES_USER=${POSTGRES_USER:-aig}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-aig_password}
+      - POSTGRES_DB=${POSTGRES_DB:-aig}
+    command: ["postgres", "-c", "max_connections=200"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - ai-infra-guard-network
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
   agent:
     image: zhuquelab/aig-agent:latest
     container_name: ai-infra-guard-agent
@@ -47,3 +68,6 @@ networks:
   ai-infra-guard-network:
     driver: bridge
     name: ai-infra-guard-network
+
+volumes:
+  postgres-data:

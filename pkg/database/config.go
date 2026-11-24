@@ -19,51 +19,39 @@
 package database
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"time"
 
-	"github.com/Tencent/AI-Infra-Guard/internal/gologger"
-
-	"github.com/glebarez/sqlite"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 )
 
 // Config 用于保存数据库配置
 type Config struct {
-	DBPath string
+	// DSN 为 PostgreSQL 连接串，如 postgres://user:pass@host:5432/dbname?sslmode=disable
+	DSN string
 }
 
 // NewConfig 创建一个新的数据库配置
-func NewConfig(dbPath string) *Config {
-	return &Config{DBPath: dbPath}
+func NewConfig(dsn string) *Config {
+	return &Config{DSN: dsn}
 }
 
-// LoadConfigFromEnv 从环境变量加载数据库配置
+// LoadConfigFromEnv 从环境变量 DATABASE_URL 加载数据库配置
 func LoadConfigFromEnv() *Config {
-	// 默认数据库路径
-	defaultDBPath := "db/tasks.db"
-
-	// 从环境变量读取数据库路径
-	if dbPath := os.Getenv("DB_PATH"); dbPath != "" {
-		defaultDBPath = dbPath
-	}
-
-	return &Config{DBPath: defaultDBPath}
+	return &Config{DSN: os.Getenv("DATABASE_URL")}
 }
 
-// InitDB 用 GORM 初始化数据库连接并返回 *gorm.DB
+// InitDB 用 GORM 连接 PostgreSQL 并返回 *gorm.DB
 func InitDB(config *Config) (*gorm.DB, error) {
-	// 确保数据库目录存在
-	dir := filepath.Dir(config.DBPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, fmt.Errorf("创建数据库目录失败: %v", err)
+	if config == nil || config.DSN == "" {
+		return nil, errors.New("未配置数据库：请设置环境变量 DATABASE_URL（PostgreSQL 连接串）")
 	}
 
-	//打开数据库连接 - 启用WAL模式和共享缓存以支持并发访问
 	// 显式关闭参数插值：默认 logger 会把绑定参数展开成明文 SQL，
 	// 而 models 表里存有 token 与 extra_headers 这类密钥，
 	// 一次失败的 UPDATE 或慢查询就可能把它们写进日志。
@@ -75,19 +63,24 @@ func InitDB(config *Config) (*gorm.DB, error) {
 			ParameterizedQueries: true,
 		},
 	)
-	db, err := gorm.Open(sqlite.Open(config.DBPath+"?_journal=WAL&_timeout=5000&cache=shared"), &gorm.Config{Logger: dbLogger})
+	db, err := gorm.Open(postgres.Open(config.DSN), &gorm.Config{
+		Logger: dbLogger,
+		// 不在库里建外键约束：应用层按 username 关联，public_user 等并不一定存在于 users 表
+		// （与此前的行为保持一致）。
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
 	if err != nil {
-		gologger.WithError(err).Fatalln("无法打开数据库连接")
+		return nil, fmt.Errorf("无法连接数据库: %w", err)
 	}
-	// 获取底层的SQL DB以配置连接池
 	sqlDB, err := db.DB()
 	if err != nil {
-		panic("failed to get database connection")
+		return nil, fmt.Errorf("获取底层数据库连接失败: %w", err)
 	}
 
-	// 设置连接池参数
-	sqlDB.SetMaxIdleConns(1000)
-	sqlDB.SetMaxOpenConns(1000)
+	// PostgreSQL 默认 max_connections=100（compose 中设为 200），连接数需低于该值
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(50)
+	sqlDB.SetConnMaxLifetime(30 * time.Minute)
 
 	return db, nil
 }

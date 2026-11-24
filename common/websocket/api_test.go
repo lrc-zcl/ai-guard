@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/Tencent/AI-Infra-Guard/pkg/database"
@@ -37,18 +36,11 @@ func init() {
 // helpers
 // ---------------------------------------------------------------------------
 
-// newTestTaskManager builds a minimal TaskManager backed by an in-memory DB.
+// newTestTaskManager builds a minimal TaskManager backed by a PostgreSQL test DB.
 func newTestTaskManager(t *testing.T) (*TaskManager, func()) {
 	t.Helper()
 
-	f, err := os.CreateTemp("", "ws-testdb-*.db")
-	require.NoError(t, err)
-	dbPath := f.Name()
-	f.Close()
-
-	cfg := database.NewConfig(dbPath)
-	db, err := database.InitDB(cfg)
-	require.NoError(t, err)
+	db := database.NewTestDB(t)
 
 	ts := database.NewTaskStore(db)
 	require.NoError(t, ts.Init())
@@ -60,14 +52,7 @@ func newTestTaskManager(t *testing.T) (*TaskManager, func()) {
 	sseM := NewSSEManager()
 	tm := NewTaskManager(am, ts, ms, nil, sseM)
 
-	cleanup := func() {
-		sqlDB, _ := db.DB()
-		if sqlDB != nil {
-			sqlDB.Close()
-		}
-		os.Remove(dbPath)
-	}
-	return tm, cleanup
+	return tm, func() {} // 清理由 NewTestDB 的 t.Cleanup 负责
 }
 
 // newRouter wires the three task-API handlers onto a minimal gin engine.

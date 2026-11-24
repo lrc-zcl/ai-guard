@@ -69,7 +69,7 @@ func RunWebServer(options *version.Options) {
 	db, err := database.InitDB(dbConfig)
 	if err != nil {
 		log.Errorf("数据库初始化失败: trace_id=system_startup, error=%v", err)
-
+		log.Fatalf("数据库初始化失败（请检查 DATABASE_URL 与 PostgreSQL 是否可达）: %v", err)
 	}
 	taskStore := database.NewTaskStore(db)
 	if err := taskStore.Init(); err != nil {

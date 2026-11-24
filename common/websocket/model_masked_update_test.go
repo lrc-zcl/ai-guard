@@ -23,8 +23,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -38,9 +36,7 @@ import (
 func newModelAPITestStore(t *testing.T) *database.ModelStore {
 	t.Helper()
 
-	dbPath := filepath.Join(t.TempDir(), "model-api-test.db")
-	db, err := database.InitDB(database.NewConfig(dbPath))
-	require.NoError(t, err)
+	db := database.NewTestDB(t)
 
 	// GetModel 会 Preload("User")，所以 users 表也要建起来（由 TaskStore 负责迁移）
 	taskStore := database.NewTaskStore(db)
@@ -48,14 +44,6 @@ func newModelAPITestStore(t *testing.T) *database.ModelStore {
 
 	store := database.NewModelStore(db)
 	require.NoError(t, store.Init())
-
-	t.Cleanup(func() {
-		sqlDB, err := db.DB()
-		if err == nil && sqlDB != nil {
-			_ = sqlDB.Close()
-		}
-		_ = os.Remove(dbPath)
-	})
 
 	return store
 }
