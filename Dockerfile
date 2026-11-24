@@ -35,8 +35,8 @@ COPY . .
 RUN rm -rf ./common/websocket/static/*
 COPY --from=frontend-builder /app/frontend/dist/ ./common/websocket/static/
 
-# 下载依赖
-RUN go mod download
+# 补全 go.sum（新增 PostgreSQL 驱动）并下载依赖
+RUN go mod tidy && go mod download
 
 # 构建应用
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -trimpath -buildvcs=false -o ai-infra-guard ./cmd/cli/main.go
