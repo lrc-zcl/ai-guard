@@ -396,8 +396,9 @@ const App: React.FC = () => {
   // Whether login is required is controlled by the private overlay (in the open-source build AuthGate is a passthrough and does not enable login)
   return (
     <Routes>
-      <Route path="/report/:sessionId" element={<ReportPage />} />
-      <Route path="/poison-detect" element={<LLMProxyDetectPage />} />
+      {/* These pages call /api/ too, so they need a login as well */}
+      <Route path="/report/:sessionId" element={<AuthGate><ReportPage /></AuthGate>} />
+      <Route path="/poison-detect" element={<AuthGate><LLMProxyDetectPage /></AuthGate>} />
       <Route
         path="/*"
         element={

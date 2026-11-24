@@ -9,9 +9,13 @@ import { initPromise } from './i18n';
 import App from './App.tsx';
 import LanguageQuerySync from './components/LanguageQuerySync.tsx';
 import { applyTranslateDomFix } from './utils/domTranslateFix';
+import { installAuthInterceptor } from './lib/authApi';
 
 // Fix DOM conflicts between translation extensions (Chrome / Google Translate, etc.) and React
 applyTranslateDomFix();
+
+// Any 401 from /api/ (session expired) sends the user back to the login page
+installAuthInterceptor();
 
 /**
  * Render the root application.

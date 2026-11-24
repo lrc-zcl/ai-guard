@@ -42,3 +42,5 @@ infra-scan/aig_infra_scan/data/*
 !infra-scan/aig_infra_scan/data/.gitkeep
 engine
 frontend
+# local secrets (see .env.example)
+.env

@@ -8,26 +8,31 @@ import {
   ScrollText,
   X,
   Bot,
-  RefreshCw
+  RefreshCw,
+  KeyRound,
+  LogOut
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { toast } from 'sonner';
 import ModelManagementSettings from './management/ModelManagementDialog';
 import KnowledgeBaseSettings, { KnowledgeBaseSettingsRef } from './management/KnowledgeBaseDialog';
 import AgentManagementDialog from './management/AgentManagementDialog';
+import ApiKeyManagement from './management/ApiKeyManagement';
 import LanguageSwitcher from './LanguageSwitcher';
 import Changelog from './Changelog';
+import { useAuth } from '../context/AuthContext';
 // The open-source build always shows the "Update data" button (used to sync the latest community fingerprint/vulnerability databases)
 const showUpdateDataButton = true;
 
 interface SettingsDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: 'plugins' | 'models' | 'agents' | 'language' | 'changelog';
+  initialTab?: 'plugins' | 'models' | 'agents' | 'language' | 'changelog' | 'apikeys';
 }
 
 const SettingsDialog = ({ isOpen, onClose, initialTab = 'plugins' }: SettingsDialogProps) => {
   const { t } = useTranslation();
+  const { user, isAdmin, logout } = useAuth();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [changelogVersion, setChangelogVersion] = useState<string>('');
   const [updating, setUpdating] = useState(false);
@@ -127,7 +132,17 @@ const SettingsDialog = ({ isOpen, onClose, initialTab = 'plugins' }: SettingsDia
     { id: 'plugins', icon: Blocks, label: t('task.pluginManagement') },
     { id: 'language', icon: Globe, label: t('language.switch') || 'Language' },
     { id: 'changelog', icon: ScrollText, label: t('common.changelog') || 'Changelog' },
+    // API keys are for external API callers; only the admin account can create or revoke them
+    ...(isAdmin ? [{ id: 'apikeys', icon: KeyRound, label: t('apiKeys.title') }] : []),
   ];
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {
+      toast.error(t('auth.logoutFailed'));
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -154,6 +169,21 @@ const SettingsDialog = ({ isOpen, onClose, initialTab = 'plugins' }: SettingsDia
                         </button>
                     ))}
                 </div>
+                {user && (
+                    <div className="p-3 border-t border-gray-200 flex items-center justify-between gap-2">
+                        <span className="text-sm text-gray-600 truncate" title={user.username}>
+                            {user.username}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={handleLogout}
+                            className="flex items-center gap-1 text-sm text-gray-500 hover:text-red-600 transition-colors flex-shrink-0"
+                        >
+                            <LogOut className="w-4 h-4" />
+                            {t('auth.logout')}
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Content */}
@@ -192,10 +222,11 @@ const SettingsDialog = ({ isOpen, onClose, initialTab = 'plugins' }: SettingsDia
                         </div>
                     )}
                     {activeTab === 'changelog' && (
-                        <Changelog 
+                        <Changelog
                             onVersionLoaded={handleVersionLoaded}
                         />
                     )}
+                    {activeTab === 'apikeys' && isAdmin && <ApiKeyManagement />}
                 </div>
             </div>
         </DialogContent>

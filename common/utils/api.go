@@ -34,6 +34,17 @@ import (
 	"github.com/Tencent/AI-Infra-Guard/internal/gologger"
 )
 
+// AgentTokenHeader 是 Agent 访问 Server 时携带内部凭据的请求头，
+// 值来自环境变量 AIG_AGENT_TOKEN，Server 端据此放行 Agent 的内部调用。
+const AgentTokenHeader = "X-AIG-Agent-Token"
+
+// SetAgentAuth 给发往 Server 的请求加上 Agent 内部凭据。
+func SetAgentAuth(req *http.Request) {
+	if token := os.Getenv("AIG_AGENT_TOKEN"); token != "" {
+		req.Header.Set(AgentTokenHeader, token)
+	}
+}
+
 var (
 	// responseHeaderTimeout bounds the wait for response headers once the request
 	// has been sent, so an unresponsive task server cannot hang the agent forever.
@@ -85,7 +96,7 @@ func DownloadFile(server, sessionId, uri, path string) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-APIKey", "zhuque")
+	SetAgentAuth(req)
 
 	// 发送 POST 请求
 	resp, err := client.Do(req)
@@ -165,7 +176,7 @@ func UploadFile(server, filePath string) (*UploadFileResponse, error) {
 
 	// 设置 Content-Type
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("X-APIKey", "zhuque")
+	SetAgentAuth(req)
 
 	// 发送请求
 	client := newTransferClient()
@@ -203,7 +214,7 @@ func GetEvaluationsDetail(server, name string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("创建请求失败: %v", err)
 	}
-	req.Header.Set("X-APIKey", "zhuque")
+	SetAgentAuth(req)
 
 	// 发送请求
 	client := newAPIClient()
@@ -247,7 +258,7 @@ func LoadRemoteFingerPrints(hostname string) ([]parser.FingerPrint, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("X-APIKey", "zhuque")
+	SetAgentAuth(req)
 
 	// 发送请求
 	client := newAPIClient()
@@ -292,7 +303,7 @@ func LoadRemoteVulStruct(api string) ([]json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("X-APIKey", "zhuque")
+	SetAgentAuth(req)
 
 	// 发送请求
 	client := newAPIClient()

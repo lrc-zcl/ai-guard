@@ -23,7 +23,10 @@
 package websocket
 
 import (
+	"crypto/rand"
 	"embed"
+	"encoding/hex"
+	"fmt"
 	"mime"
 	"net/http"
 	"os"
@@ -38,11 +41,15 @@ import (
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"gorm.io/gorm"
 	"trpc.group/trpc-go/trpc-go/log"
 )
 
 //go:embed static/*
 var staticFS embed.FS
+
+// adminUsername 内置管理员账号名。
+const adminUsername = "admin"
 
 func RunWebServer(options *version.Options) {
 	// 1. 初始化trpc-go
@@ -78,13 +85,18 @@ func RunWebServer(options *version.Options) {
 	}
 	// 自动添加模型
 	modelStore.AutoAddModels()
+
+	// 初始化认证：管理员账号、登录会话、API Key
+	auth := initAuthenticator(db)
+
 	if options.APICheckerURL != "" {
 		apiCheckerProxy, proxyErr := apichecker.NewWithModelStore(options.APICheckerURL, modelStore)
 		if proxyErr != nil {
 			log.Errorf("API Checker 代理配置无效: trace_id=system_startup, error=%v", proxyErr)
 		} else {
 			apiCheckerProxy.EnableConfiguredModelResolution(setupIdentityMiddleware())
-			apiCheckerProxy.Register(r)
+			// API Checker 代理同样需要登录态或 API Key
+			apiCheckerProxy.Register(r.Group("", auth.Authenticate()))
 			log.Infof(
 				"API Checker proxy initialized: trace_id=system_startup, upstream=%s",
 				options.APICheckerURL,
@@ -121,7 +133,22 @@ func RunWebServer(options *version.Options) {
 
 	// API 版本分组
 	v1 := r.Group("/api/v1")
+	// 登录/退出必须在 Use(鉴权) 之前注册：gin 的 Use 只对其后注册的路由生效，
+	// 所以这两个是公开的，其余 /api/v1 下的接口都要求登录态或 API Key。
+	v1.POST("/auth/login", auth.HandleLogin)
+	v1.POST("/auth/logout", auth.HandleLogout)
+	v1.Use(auth.Authenticate())
 	{
+		// 当前登录信息（前端据此判断是否已登录、是否为 admin）
+		v1.GET("/auth/me", auth.HandleMe)
+		// API Key 管理：只有 admin 通过网页登录才能操作
+		apiKeys := v1.Group("/auth/api-keys", auth.RequireAdminSession())
+		{
+			apiKeys.GET("", auth.HandleListAPIKeys)
+			apiKeys.POST("", auth.HandleCreateAPIKey)
+			apiKeys.DELETE("/:id", auth.HandleRevokeAPIKey)
+		}
+
 		v1.GET("/images/:path", func(context *gin.Context) {
 			path := context.Param("path")
 			if strings.Contains(path, "..") {
@@ -378,6 +405,44 @@ func serveStaticFallback(c *gin.Context) {
 	}
 	c.Header("Content-Type", mimeType)
 	c.Data(http.StatusOK, mimeType, assetData)
+}
+
+// initAuthenticator 初始化认证模块。
+//
+//   - AIG_ADMIN_PASSWORD：admin 密码。设置后每次启动都以它为准；未设置且 admin 不存在时
+//     生成随机密码并打印一次。
+//   - AIG_AGENT_TOKEN：Agent 连接 Server 的内部凭据，Server 与所有 Agent 必须一致。
+//     未设置时生成随机值，此时独立部署的 Agent 无法连接，启动日志会给出提示。
+func initAuthenticator(db *gorm.DB) *Authenticator {
+	authStore := database.NewAuthStore(db)
+	if err := authStore.Init(); err != nil {
+		log.Fatalf("初始化认证表失败: %v", err)
+	}
+
+	generated, err := authStore.EnsureAdmin(adminUsername, os.Getenv("AIG_ADMIN_PASSWORD"))
+	if err != nil {
+		log.Fatalf("初始化 admin 账号失败: %v", err)
+	}
+	if generated != "" {
+		fmt.Fprintf(os.Stderr, "\n==============================================================\n"+
+			" 已创建管理员账号（该密码只显示这一次，请立即保存）\n"+
+			"   用户名: %s\n"+
+			"   密  码: %s\n"+
+			" 如需固定密码，请设置环境变量 AIG_ADMIN_PASSWORD 后重启\n"+
+			"==============================================================\n\n", adminUsername, generated)
+	}
+
+	agentToken := os.Getenv("AIG_AGENT_TOKEN")
+	if agentToken == "" {
+		raw := make([]byte, 24)
+		if _, err := rand.Read(raw); err != nil {
+			log.Fatalf("生成 Agent 凭据失败: %v", err)
+		}
+		agentToken = hex.EncodeToString(raw)
+		fmt.Fprintln(os.Stderr, "[警告] 未设置 AIG_AGENT_TOKEN：已生成临时凭据，独立部署的 Agent 将无法连接。"+
+			"请在 Server 和所有 Agent 上设置相同的 AIG_AGENT_TOKEN。")
+	}
+	return NewAuthenticator(authStore, agentToken)
 }
 
 // 配置身份认证中间件

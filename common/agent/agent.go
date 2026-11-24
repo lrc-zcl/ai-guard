@@ -23,10 +23,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
+	"os"
 	"sync"
 	"time"
 
+	"github.com/Tencent/AI-Infra-Guard/common/utils"
 	"github.com/Tencent/AI-Infra-Guard/internal/gologger"
 
 	"github.com/google/uuid"
@@ -133,7 +136,12 @@ func (a *Agent) connect() error {
 		return err
 	}
 	dialer := websocket.DefaultDialer
-	conn, _, err := dialer.Dial(u.String(), nil)
+	// Server 要求 Agent 携带内部凭据（AIG_AGENT_TOKEN），否则拒绝连接
+	header := http.Header{}
+	if token := os.Getenv("AIG_AGENT_TOKEN"); token != "" {
+		header.Set(utils.AgentTokenHeader, token)
+	}
+	conn, _, err := dialer.Dial(u.String(), header)
 	if err != nil {
 		return err
 	}

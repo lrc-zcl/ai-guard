@@ -12,6 +12,10 @@ services:
       - DB_PATH=/app/db/tasks.db
       - TZ=Asia/Shanghai
       - AIG_API_CHECKER_URL=http://agent:8000
+      # 网页登录：用户名固定为 admin，密码取自 .env。留空则首次启动随机生成并打印到日志（docker logs）
+      - AIG_ADMIN_PASSWORD=${AIG_ADMIN_PASSWORD:-}
+      # Agent 连接 Server 的内部凭据，必须与 agent 服务一致（见 .env.example）
+      - AIG_AGENT_TOKEN=${AIG_AGENT_TOKEN:?请先复制 .env.example 为 .env 并设置 AIG_AGENT_TOKEN}
     volumes:
       - ./data:/app/data
       - ./db:/app/db
@@ -39,6 +43,7 @@ services:
     environment:
       - TZ=Asia/Shanghai
       - AIG_SERVER=webserver:8088
+      - AIG_AGENT_TOKEN=${AIG_AGENT_TOKEN:?请先复制 .env.example 为 .env 并设置 AIG_AGENT_TOKEN}
       - AIG_API_CHECKER_ROOT_PATH=/api-checker
       - AIG_API_CHECKER_DATA_DIR=/api-checker-data
       - AIG_API_CHECKER_MAX_JOBS=${AIG_API_CHECKER_MAX_JOBS:-20}

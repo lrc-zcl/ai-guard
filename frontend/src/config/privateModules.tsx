@@ -25,6 +25,7 @@
  * =============================================================================
  */
 import React from 'react';
+import AuthGateImpl from '../components/auth/AuthGate';
 
 /**
  * AppShell: wraps the entire App in main.tsx.
@@ -41,13 +42,11 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 /**
  * AuthGate: wraps the main app routes to decide whether login is required.
  *
- * Open-source build: directly passes through children; no login flow.
- * Internal overlay: can be replaced with an <AuthGuard> component
- * (requires login and renders ProLoginPage).
+ * This build requires an account login (username + password) before any page is shown;
+ * the session is an HttpOnly cookie, so the web UI never needs an API key.
+ * Internal overlay: can still replace this with its own guard.
  */
-export const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <>{children}</>
-);
+export const AuthGate: React.FC<{ children: React.ReactNode }> = AuthGateImpl;
 
 /** Sensitive data / collaboration contact hint (second tab in the Star / SensitiveData dialog) */
 export interface SensitiveContact {

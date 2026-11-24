@@ -100,6 +100,17 @@ These are invoked as subprocesses by Go agents, each has its own virtualenv:
 | `UPLOAD_DIR` | `/app/uploads` | File upload directory |
 | `APP_ENV` | — | `production` or `development` |
 | `TZ` | `Asia/Shanghai` | Timezone |
+| `AIG_ADMIN_PASSWORD` | — | Password of the `admin` web login. If empty, a random one is generated on first start and printed to the server log once |
+| `AIG_AGENT_TOKEN` | — | Shared secret for Agent → Server calls (WebSocket + internal HTTP). Must be identical on the server and every agent; compose reads it from `.env` |
+
+## Authentication
+
+Every `/api/v1` route except `POST /auth/login` and `POST /auth/logout` requires one of:
+- the `aig_session` HttpOnly cookie from `/api/v1/auth/login` (web UI; no API key needed),
+- an API key in `X-API-Key` (or `Authorization: Bearer aig_...`) for external callers,
+- `X-AIG-Agent-Token` (agents only, restricted to the endpoints in `agentAllowed`, `common/websocket/auth.go`).
+
+Only the `admin` account, via the web session, can create/revoke API keys (`/api/v1/auth/api-keys`; Settings → API Keys). Keys have a mandatory expiry; only the SHA-256 is stored and the plaintext is returned once. Auth tables: `auth_accounts`, `auth_sessions`, `api_keys` (`pkg/database/auth.go`), separate from the `users` table that owns task data (everything is still owned by `public_user`).
 
 ## Contributing Rules
 
